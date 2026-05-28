@@ -1,7 +1,7 @@
 ﻿# simple_deploy.ps1 - Только сборка и копирование
 param
 (
-    [string]$ServerPath = "\\server\Workshop web", 
+    [string]$ServerPath = "\\server\Workshop_web", 
     [switch]$SkipBuild,
     [switch]$Test  # Проверить доступность без копирования
 )

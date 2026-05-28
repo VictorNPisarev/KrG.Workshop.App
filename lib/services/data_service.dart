@@ -190,12 +190,12 @@ class DataService
 
 		try 
 		{
-		print('📥 Загрузка заказов для участка $workplaceId');
+			print('📥 Загрузка заказов для участка $workplaceId');
 
-		final action = 'getActiveAndPendingOrdersByWorkplace';
+			final action = 'getActiveAndPendingOrdersByWorkplace';
 
-		final response = await _callGAS(action, params: {'workplaceId': workplaceId});
-			// Используем compute для парсинга в фоне
+			final response = await _callGAS(action, params: {'workplaceId': workplaceId});
+				// Используем compute для парсинга в фоне
 			final orders = await compute(_parseOrdersResponse, response.body);
 
 			// Сохраняем в кэш
@@ -207,18 +207,18 @@ class DataService
 		} 
 		on TimeoutException catch (e) 
 		{
-		print('⏰ Таймаут запроса: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('⏰ Таймаут запроса: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		} 
 		on SocketException catch (e) 
 		{
-		print('📡 Ошибка сети: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('📡 Ошибка сети: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		} 
 		catch (e) 
 		{
-		print('❌ Ошибка в getOrdersByWorkplace: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('❌ Ошибка в getOrdersByWorkplace: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		}
 
 

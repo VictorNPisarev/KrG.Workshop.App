@@ -20,6 +20,7 @@ samples, guidance on mobile development, and a full API reference.
 
 ## BUILD release
 **Web:** flutter build web --release --no-tree-shake-icons
+**Webc с публикацией на IIS-сервер:** .\scripts\deploy_web_server_iis.ps1 [-ServerPath "\\server\Workshop web" | -SkipBuild | -Test]
 **Apk (push main с новой версией + публикация на Github):** .\scripts\release_w_push.ps1
 
 ## ЗАПУСК СЕРВЕРА
