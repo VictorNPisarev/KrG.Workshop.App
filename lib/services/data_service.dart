@@ -17,6 +17,17 @@ class DataService
 {
 	static String get _baseUrl => _currentBaseUrl;
 	static String _currentBaseUrl = '';
+
+	//static bool get isNodeServer => !_currentBaseUrl.contains('script.google.com');
+	static bool get isGASServer => _currentBaseUrl.contains('script.google.com');
+
+	
+	// Socket.IO URL (тот же хост, порт 3000)
+	static String get socketUrl
+	{
+		final uri = Uri.parse(_currentBaseUrl);
+		return '${uri.scheme}://${uri.host}:3000';
+	}
 	
 	// Инициализация (вызывать при запуске)
 	static Future<void> init() async 
@@ -508,16 +519,14 @@ class DataService
 
 	// Универсальный метод для всех запросов
 	static Future<http.Response>_callGAS(String action, {Map<String, dynamic>? params}) async 
-	{
-		bool _isGASServer = _currentBaseUrl.contains('script.google.com');
-		
-		if(PlatformUtils.isWeb && _isGASServer)
+	{		
+		if(PlatformUtils.isWeb && isGASServer)
 		{
 			return _postGAS(action, params: params);
 		}
 		else
 		{
-			return _isGASServer ? _getGAS(action, params: params) : _getNodeServer(action, params: params);
+			return isGASServer ? _getGAS(action, params: params) : _getNodeServer(action, params: params);
 		}
 	}
 	
@@ -551,11 +560,11 @@ class DataService
 
 			if (response.statusCode == 200) 
 			{
-			return response;
+				return response;
 			} 
 			else 
 			{
-			throw Exception('HTTP ${response.statusCode}');
+				throw Exception('HTTP ${response.statusCode}');
 			}
 		}
 		finally

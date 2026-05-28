@@ -1,15 +1,18 @@
-	import 'dart:async';
-	import 'package:flutter/foundation.dart';
-	import 'package:flutter/material.dart';
-	import '../models/order_in_product.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import '../models/order_in_product.dart';
 import '../models/workplace_status.dart';
-	import '../models/workplace.dart';
-	import '../services/data_service.dart';
-	import '../utils/network_utils.dart';
-	import 'auth_provider.dart';
+import '../models/workplace.dart';
+import '../services/data_service.dart';
+import '../utils/network_utils.dart';
+import '../services/socket_service.dart';
 
-	class OrdersProvider extends ChangeNotifier 
-	{
+
+class OrdersProvider extends ChangeNotifier 
+{
+	final SocketService _socketService = SocketService();
+
 	// Списки заказов
 	List<OrderInProduct> _currentOrders = [];
 	List<OrderInProduct> _pendingOrders = [];
@@ -37,7 +40,7 @@ import '../models/workplace_status.dart';
 
 
 	// Инициализация провайдера
-	Future<void> initialize(String workplaceId, {Workplace? workplace, List<Workplace>? availableWorkplaces}) async 
+	Future<void> initialize(String workplaceId, {Workplace? workplace, List<Workplace>? availableWorkplaces,}) async
 	{
 		if (_isLoading) return;
 
@@ -45,69 +48,92 @@ import '../models/workplace_status.dart';
 		_error = null;
 		notifyListeners();
 
-		try 
+		try
 		{
-		print('🔄 OrdersProvider.initialize: начало, workplaceId=$workplaceId');
+			print('🔄 OrdersProvider.initialize: начало, workplaceId=$workplaceId');
 
-		// Проверяем интернет
-		if (!await NetworkUtils.hasInternetConnection()) 
-		{
-			throw Exception('Нет подключения к интернету');
+			// Проверяем интернет
+			if (!await NetworkUtils.hasInternetConnection())
+			{
+				throw Exception('Нет подключения к интернету');
+			}
+
+			if (workplace != null)
+			{
+				_currentWorkplace = workplace;
+				print(
+				'✅ Получил рабочее место из AuthAdapter: ${_currentWorkplace!.name}',
+				);
+			}
+			else if (availableWorkplaces != null && availableWorkplaces.isNotEmpty)
+			{
+				_currentWorkplace = availableWorkplaces.firstWhere(
+					(wp) => wp.id == workplaceId,
+					orElse: () => Workplace.fallback(),
+				);
+				
+				print('✅ Получил рабочее место из availableWorkplaces: ${_currentWorkplace!.name}');
+			}
+			else
+			{
+				final workplaces = await DataService.getWorkplaces();
+				print('✅ Загружено рабочих мест: ${workplaces.length}');
+
+				final workplace = workplaces.firstWhere(
+					(wp) => wp.id == workplaceId,
+					orElse: ()
+					{
+						print('⚠️ Workplace $workplaceId не найден, использую первый');
+						return workplaces.isNotEmpty
+							? workplaces.first
+							: Workplace.fallback();
+					},
+				);
+
+				_currentWorkplace = workplace;
+			}
+
+			print('✅ Текущее рабочее место: ${_currentWorkplace!.name}');
+
+			// Загружаем заказы
+			await _loadOrdersParallel();
+
+			if (!DataService.isGASServer)
+			{
+				// Для Node.js — используем Socket.IO (мгновенные обновления)
+				print('🔌 Подключаемся к Socket.IO (Node.js сервер)');
+				_socketService.connect(DataService.socketUrl);
+				_socketService.setWorkplace(workplaceId);
+
+				_socketService.onOrderUpdate((data)
+				{
+					print('📨 Получено обновление, перезагружаем заказы');
+					_loadOrdersParallel();
+				});
+			}
+			else
+			{
+				// Для GAS — используем периодическое обновление
+				print('⏰ Запускаем периодическое обновление (GAS сервер)');
+				_startAutoRefresh();
+			}
+
+			_isInitialized = true;
+			print('✅ OrdersProvider.initialize: завершено успешно');
 		}
-
-		if (workplace != null)
+		catch (e)
 		{
-			_currentWorkplace = workplace;
-			print('✅ Получил рабочее место из AuthAdapter: ${_currentWorkplace!.name}');
+			_error = 'Ошибка инициализации: $e';
+			print('❌ OrdersProvider.initialize: ошибка - $e');
+			_useFallbackData(workplaceId);
 		}
-		else if (availableWorkplaces != null && availableWorkplaces.isNotEmpty) 
+		finally
 		{
-			// Используем переданный список
-			_currentWorkplace = availableWorkplaces.firstWhere(
-				(wp) => wp.id == workplaceId,
-				orElse: () => Workplace.fallback(),
-			);
-			print('✅ Получил рабочее место из availableWorkplaces: ${_currentWorkplace!.name}');
-		}
-		else
-		{
-			// Загружаем рабочие места
-			final workplaces = await DataService.getWorkplaces();
-			print('✅ Загружено рабочих мест: ${workplaces.length}');
-
-			// Находим нужное рабочее место
-			final workplace = workplaces.firstWhere(
-				(wp) => wp.id == workplaceId,
-				orElse: () {
-				print('⚠️ Workplace $workplaceId не найден, использую первый');
-				return workplaces.isNotEmpty ? workplaces.first : Workplace.fallback();
-				},
-			);
-
-			_currentWorkplace = workplace;
-		}
-
-		print('✅ Текущее рабочее место: ${_currentWorkplace!.name}');
-
-		// Загружаем заказы параллельно
-		await _loadOrdersParallel();
-
-		// Запускаем периодическое обновление (каждые 5 минут)
-		_startAutoRefresh();
-
-		_isInitialized = true;
-		print('✅ OrdersProvider.initialize: завершено успешно');
-		} catch (e) {
-		_error = 'Ошибка инициализации: $e';
-		print('❌ OrdersProvider.initialize: ошибка - $e');
-
-		// Используем fallback
-		_useFallbackData(workplaceId);
-		} finally {
-		_isLoading = false;
-		notifyListeners();
+			_isLoading = false;
+			notifyListeners();
 		}
 	}
+
 
 	// Параллельная загрузка заказов
 	Future<void> _loadOrdersParallel() async 
@@ -118,25 +144,6 @@ import '../models/workplace_status.dart';
 		{
 			print('🔄 Загрузка заказов...');
 
-	/*		// Создаем Future для параллельного выполнения
-			final futures = <Future<List<OrderInProduct>>>[
-				DataService.getOrdersForWorkplace(_currentWorkplace!.id, true),
-				if (_currentWorkplace!.previousWorkplace != null)
-				DataService.getOrdersForWorkplace(_currentWorkplace!.id, false),
-			];
-
-			// Выполняем параллельно
-			final results = await Future.wait(futures);
-			
-			// Текущие заказы (всегда первый результат)
-			_currentOrders = results[0];
-			//_currentOrders.forEach((order) => order.setStatusByWorkplace(_currentWorkplace!.id));
-			//_currentOrders = _currentOrders.where((order) => !order.operations.isCompleted).toList();
-			
-			// Ожидающие заказы (если есть второй результат)
-			_pendingOrders = results.length > 1 ? results[1] : [];
-			//_pendingOrders.forEach((order) => order.status = OrderStatus.pending);
-	*/
 			// Делаем один запрос, который возвращает все заказы с полем "workplaceOrderStatus"
 			final allOrders = await DataService.getAllOrdersForWorkplace(_currentWorkplace!.id);
 			
