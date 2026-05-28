@@ -93,8 +93,7 @@ class _AppNavigatorState extends State<AppNavigator>
 			print('❌ Ошибка инициализации: $e');
 			if (mounted)
 			{
-				setState(()
-				{
+				setState((){
 					_error = e.toString();
 					_appState = AppState.error;
 				});
@@ -108,18 +107,13 @@ class _AppNavigatorState extends State<AppNavigator>
 		{
 			print('🔄 Проверка обновлений...');
 			
-			GitHubUpdateManager.configure(
-				repoOwner: 'VictorNPisarev',
-				repoName: 'KrG-Workshop_app',
-			);
-			
 			final update = await GitHubUpdateManager.checkForUpdates();
 			
 			if (update != null)
 			{
 				print('🎉 Обновление найдено: ${update.version}');
-				
-				final shouldShow = await GitHubUpdateManager.shouldShowUpdate(update.versionCode);
+
+				/*final shouldShow = await GitHubUpdateManager.shouldShowUpdate(update.versionCode);
 				
 				if (shouldShow && mounted)
 				{
@@ -128,8 +122,15 @@ class _AppNavigatorState extends State<AppNavigator>
 					_updatesChecked = true;
 					
 					// Показываем диалог
-					await _showUpdateDialog(update);
+					//await _showUpdateDialog(update);
+					await GitHubUpdateManager.showUpdateDialog(context, update);
+				}*/
+
+				if (mounted)
+				{
+					await GitHubUpdateManager.showUpdateDialog(context, update);
 				}
+
 			}
 			else
 			{
@@ -152,44 +153,36 @@ class _AppNavigatorState extends State<AppNavigator>
 	}
 	
 	@override
-	Widget build(BuildContext context)
-	{
+	Widget build(BuildContext context) {
 		final authProvider = Provider.of<AuthProvider>(context);
 		
 		// 1. Если есть ошибка - показываем экран ошибки
-		if (_appState == AppState.error)
-		{
+		if (_appState == AppState.error) {
 			return _buildErrorScreen();
 		}
 		
 		// 2. Если идёт загрузка - показываем сплеш
-		if (_appState == AppState.loading || authProvider.isLoading)
-		{
+		if (_appState == AppState.loading || authProvider.isLoading) {
 			return const SplashScreen();
 		}
 		
 		// 3. Основная навигация
-		if (_appState == AppState.ready)
-		{
+		if (_appState == AppState.ready) {
 			// Если есть обновление И мы его еще не показывали
-			if (_availableUpdate != null && !_updatesChecked)
-			{
+			if (_availableUpdate != null && !_updatesChecked) {
 				// Показываем диалог обновления сразу
-				WidgetsBinding.instance.addPostFrameCallback((_)
-				{
+				WidgetsBinding.instance.addPostFrameCallback((_) {
 					_updatesChecked = true; // Помечаем как показанное
 					_showUpdateDialog(_availableUpdate!);
 				});
 			}
 			
 			// Показываем основной интерфейс
-			if (!authProvider.isAuthenticated)
-			{
+			if (!authProvider.isAuthenticated) {
 				return const LoginScreen();
 			}
 			
-			if (authProvider.currentWorkplace == null)
-			{
+			if (authProvider.currentWorkplace == null) {
 				return const SelectWorkplaceScreen();
 			}
 			
@@ -199,8 +192,7 @@ class _AppNavigatorState extends State<AppNavigator>
 		return const SplashScreen();
 	}
 	
-	Widget _buildErrorScreen()
-	{
+	Widget _buildErrorScreen() {
 		return Scaffold(
 			body: Center(
 				child: Padding(
@@ -224,10 +216,8 @@ class _AppNavigatorState extends State<AppNavigator>
 							ElevatedButton.icon(
 								icon: const Icon(Icons.refresh),
 								label: const Text('Повторить'),
-								onPressed: ()
-								{
-									setState(()
-									{
+								onPressed: () {
+									setState(() {
 										_error = null;
 										_appState = AppState.loading;
 										_availableUpdate = null;

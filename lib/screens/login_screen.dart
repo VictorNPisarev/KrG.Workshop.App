@@ -77,16 +77,15 @@ class _LoginScreenState extends State<LoginScreen>
 					duration: const Duration(seconds: 1),
 				),
 			);
+
+			await _login();
 		}
 		else
 		{
 			print('ℹ️ Нет сохраненного email');
-			_autoLoginAttempted = false;
 
-			return;
+			_autoLoginAttempted = false;
 		}
-			
-		await _login();
 	}
 
 	// Показываем настройки по долгому нажатию
