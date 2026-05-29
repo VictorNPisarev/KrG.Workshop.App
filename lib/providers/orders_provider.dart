@@ -108,7 +108,9 @@ class OrdersProvider extends ChangeNotifier
 				_socketService.onOrderUpdate((data)
 				{
 					print('📨 Получено обновление, перезагружаем заказы');
-					_loadOrdersParallel();
+					_loadOrdersParallel().then((_) {
+						notifyListeners(); // Уведомляем UI после загрузки
+					});
 				});
 			}
 			else

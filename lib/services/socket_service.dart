@@ -90,7 +90,7 @@ class SocketService
 
 	void onOrderUpdate(Function(Map<String, dynamic>) callback)
 	{
-		_socket?.on('order:update', (data)
+		_socket?.on('workplace:order:updated', (data)
 		{
 			debugPrint('📨 Получено обновление заказа: $data');
 			callback(data as Map<String, dynamic>);
