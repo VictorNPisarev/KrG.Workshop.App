@@ -44,23 +44,25 @@ class Workplace
 		{
 			print('🧩 Начало парсинга Workplace');
 			print('   Сырой JSON: $json');
-			
+
 			// Дебаг каждого поля
-			final rowId = json['Row ID'];
+			final rowId = json['id'] ?? json['Row ID'];
 			print('   Row ID: $rowId (тип: ${rowId.runtimeType})');
-			
-			final status = json['Статус'];
+
+			final status = json['name'] ?? json['Статус'];
 			print('   Статус: $status (тип: ${status.runtimeType})');
-			
-			final previous = json['Предыдущий участок'];
+
+			final previous = json['previous_workplace_id'] ?? json['Предыдущий участок'];
 			print('   Предыдущий участок: $previous (тип: ${previous.runtimeType})');
-			
-			final isWorkplaceStr = json['Участок производства'];
-			print('   Участок производства: $isWorkplaceStr (тип: ${isWorkplaceStr.runtimeType})');
-			
+
+			final isWorkplaceStr =
+				json['is_workplace'] ?? json['Участок производства'];
+			print(
+				'Участок производства: $isWorkplaceStr (тип: ${isWorkplaceStr.runtimeType})',
+			);
+
 			// Map для иконок
-			final Map<String, IconData> workplaceIconsMapping = 
-			{
+			final Map<String, IconData> workplaceIconsMapping = {
 				'Торцовка': Icons.carpenter,
 				'Профилирование': Icons.border_inner,
 				'Сборка': Icons.build,
@@ -72,25 +74,26 @@ class Workplace
 			};
 
 			final icon = workplaceIconsMapping[status] ?? Icons.work_outline;
-			
+
 			// Валидация
 			if (rowId == null)
 			{
 				throw Exception('❌ Row ID не может быть null');
 			}
-			
+
 			if (status == null)
 			{
 				throw Exception('❌ Статус не может быть null');
 			}
-			
+
 			return Workplace(
 				id: rowId.toString(),
 				name: status.toString(),
 				previousWorkplace: previous?.toString(),
 				nextWorkPlace: null, // Пока нет в данных
-				isWorkPlace: (isWorkplaceStr?.toString() ?? 'Нет').toLowerCase() == 'да',
-				workplaceIcon: icon
+				isWorkPlace:
+					(isWorkplaceStr?.toString() ?? 'Нет').toLowerCase() == 'да',
+				workplaceIcon: icon,
 			);
 		}
 		catch (e)

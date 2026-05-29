@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:workshop_app/services/data_service.dart';
 import 'package:workshop_app/services/github_update_manager.dart';
 import 'providers/auth_provider.dart';
 import 'providers/orders_provider.dart';
@@ -8,7 +9,12 @@ import 'screens/login_screen.dart';
 import 'screens/select_workplace_screen.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+void main() async
+{
+	WidgetsFlutterBinding.ensureInitialized();
+
+	await DataService.init();
+
 	runApp(const WorkshopApp());
 }
 
@@ -244,7 +250,8 @@ class _UpdateDialogState extends State<UpdateDialog>
 	double _progress = 0.0;
 	
 	@override
-	Widget build(BuildContext context) {
+	Widget build(BuildContext context)
+	{
 		return AlertDialog(
 			title: const Text('Доступно обновление'),
 			content: _isDownloading
@@ -287,7 +294,8 @@ class _UpdateDialogState extends State<UpdateDialog>
 			actions: [
 				if (!_isDownloading)
 					TextButton(
-						onPressed: () {
+						onPressed: ()
+						{
 							GitHubUpdateManager.markAsSkipped(widget.update.versionCode);
 							Navigator.pop(context);
 						},
@@ -303,21 +311,27 @@ class _UpdateDialogState extends State<UpdateDialog>
 		);
 	}
 	
-	void _startDownload(BuildContext context) async {
+	void _startDownload(BuildContext context) async
+	{
 		setState(() => _isDownloading = true);
 		
-		try {
+		try
+		{
 			await GitHubUpdateManager.downloadAndInstall(
 				context,
 				widget.update,
 				(progress) => setState(() => _progress = progress),
 			);
 			
-			if (context.mounted) {
+			if (context.mounted)
+			{
 				Navigator.pop(context);
 			}
-		} catch (e) {
-			if (context.mounted) {
+		}
+		catch (e)
+		{
+			if (context.mounted)
+			{
 				setState(() => _isDownloading = false);
 				ScaffoldMessenger.of(context).showSnackBar(
 					SnackBar(

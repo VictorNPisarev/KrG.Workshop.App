@@ -1,4 +1,4 @@
-﻿name: workshop_app
+name: workshop_app
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -56,6 +56,7 @@ dependencies:
   path_provider: ^2.1.5
   permission_handler: ^12.0.1
   open_file: ^3.5.11
+  socket_io_client: ^3.1.4
 
 dev_dependencies:
   flutter_test:

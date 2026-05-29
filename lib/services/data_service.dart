@@ -2,20 +2,47 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../config/route_config.dart';
 import '../models/order_in_product.dart';
 import '../models/order_trace.dart';
 import '../models/user.dart';
 import '../models/workplace.dart';
 import '../models/workplace_status.dart';
 import '../utils/platform_utils.dart';
+import '../config/app_config.dart';
+import 'config_service.dart';
 
 class DataService 
 {
-	static const String _baseUrl =
-		'https://script.google.com/macros/s/AKfycbzoDyvGU4ZHKg4oy1rGmxvxLTfnMATV21eYUzTFsj4pTxz3ii3sqw-i6fk5vElvrqBR-w/exec';
-	static final http.Client _client = http.Client();
+	static String get _baseUrl => _currentBaseUrl;
+	static String _currentBaseUrl = '';
+
+	//static bool get isNodeServer => !_currentBaseUrl.contains('script.google.com');
+	static bool get isGASServer => _currentBaseUrl.contains('script.google.com');
+
+	
+	// Socket.IO URL (тот же хост, порт 3000)
+	static String get socketUrl
+	{
+		final uri = Uri.parse(_currentBaseUrl);
+		return '${uri.scheme}://${uri.host}:3000';
+	}
+	
+	// Инициализация (вызывать при запуске)
+	static Future<void> init() async 
+	{
+		_currentBaseUrl = await ConfigService.getApiUrl();
+		print('🌐 API URL: $_currentBaseUrl');
+	}
+	
+	// Обновление URL (при смене сервера)
+	static Future<void> refreshApiUrl() async 
+	{
+		_currentBaseUrl = await ConfigService.getApiUrl();
+		print('🔄 API URL обновлён: $_currentBaseUrl');
+		clearCache(); // Очищаем кэш при смене сервера
+	}
 
 	// Таймауты для мобильных устройств
 	static const Duration _timeoutDuration = Duration(seconds: 120);
@@ -112,7 +139,7 @@ class DataService
 			final workplace = Workplace.fromJson(item);
 			workplaces.add(workplace);
 			} catch (e) {
-			print('   ⚠️ Ошибка парсинга элемента $i: $e');
+			print('	 ⚠️ Ошибка парсинга элемента $i: $e');
 			}
 		}
 
@@ -190,11 +217,11 @@ class DataService
 
 		try 
 		{
-		print('📥 Загрузка заказов для участка $workplaceId');
+			print('📥 Загрузка заказов для участка $workplaceId');
 
-		final action = 'getActiveAndPendingOrdersByWorkplace';
+			final action = 'getActiveAndPendingOrdersByWorkplace';
 
-		final response = await _callGAS(action, params: {'workplaceId': workplaceId});
+			final response = await _callGAS(action, params: {'workplaceId': workplaceId});
 			// Используем compute для парсинга в фоне
 			final orders = await compute(_parseOrdersResponse, response.body);
 
@@ -207,46 +234,51 @@ class DataService
 		} 
 		on TimeoutException catch (e) 
 		{
-		print('⏰ Таймаут запроса: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('⏰ Таймаут запроса: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		} 
 		on SocketException catch (e) 
 		{
-		print('📡 Ошибка сети: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('📡 Ошибка сети: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		} 
 		catch (e) 
 		{
-		print('❌ Ошибка в getOrdersByWorkplace: $e');
-		return [];//_ordersCache[workplaceId] ?? [];
+			print('❌ Ошибка в getOrdersByWorkplace: $e');
+			return [];//_ordersCache[workplaceId] ?? [];
 		}
 
 
 	}
 
 	// Парсинг заказов в фоне
-	static List<OrderInProduct> _parseOrdersResponse(String responseBody) {
-		try {
-		final List<dynamic> jsonList = jsonDecode(responseBody);
+	static List<OrderInProduct> _parseOrdersResponse(String responseBody)
+	{
+		try
+		{
+			final List<dynamic> jsonList = jsonDecode(responseBody);
+			final orders = <OrderInProduct>[];
 
-		  print(responseBody);
-
-		final orders = <OrderInProduct>[];
-
-		for (int i = 0; i < jsonList.length; i++) {
-			try {
-			final item = jsonList[i] as Map<String, dynamic>;
-			final order = OrderInProduct.fromJson(item);
-			orders.add(order);
-			} catch (e) {
-			print('   ⚠️ Ошибка парсинга элемента $i: $e');
+			for (int i = 0; i < jsonList.length; i++)
+			{
+				try
+				{
+					final item = jsonList[i] as Map<String, dynamic>;
+					final order = OrderInProduct.fromJson(item);
+					orders.add(order);
+				}
+				catch (e)
+				{
+					print('	 ⚠️ Ошибка парсинга элемента $i: $e');
+				}
 			}
-		}
 
-		return orders;
-		} catch (e) {
-		print('❌ Ошибка парсинга JSON: $e');
-		return [];
+			return orders;
+		}
+		catch (e)
+		{
+			print('❌ Ошибка парсинга JSON: $e');
+			return [];
 		}
 	}
 
@@ -291,68 +323,80 @@ class DataService
 	{
 		try 
 		{
-		final response = await _callGAS('getUserByEmail', params: {'email': email});
+			final response = await _callGAS('getUserByEmail', params: {'email': email});
 
-		return _parseUserResponse(response.body);
-		/*final response = await http.get(
-			Uri.parse('$_baseUrl?action=getUserByEmail&email=$email'),
-		).timeout(_timeoutDuration);
-
-		if (response.statusCode == 200) 
-		{
 			return _parseUserResponse(response.body);
-		} 
-		else 
+			/*final response = await http.get(
+				Uri.parse('$_baseUrl?action=getUserByEmail&email=$email'),
+			).timeout(_timeoutDuration);
+
+			if (response.statusCode == 200) 
+			{
+				return _parseUserResponse(response.body);
+			} 
+			else 
+			{
+				throw Exception('HTTP ${response.statusCode}');
+			}*/
+		}
+		catch (e)
 		{
-			throw Exception('HTTP ${response.statusCode}');
-		}*/
-		} catch (e) {
-		print('❌ Ошибка в getUserByEmail: $e');
-		rethrow;
+			print('❌ Ошибка в getUserByEmail: $e');
+			rethrow;
 		}
 	}
 
-	static User? _parseUserResponse(String responseBody) {
-		try {
-		final List<dynamic> jsonList = jsonDecode(responseBody);
+	static User? _parseUserResponse(String responseBody)
+	{
+		try
+		{
+			var jsonData = jsonDecode(responseBody);
 
-		for (int i = 0; i < jsonList.length; i++) {
-			try {
-			final item = jsonList[i] as Map<String, dynamic>;
-			return User.fromJson(item);
-			} catch (e) {
-			print('   ⚠️ Ошибка парсинга элемента $i: $e');
+			if (jsonData is List)
+			{
+				jsonData = jsonData[0];
 			}
-		}
+		
+			try
+			{
+				final item = jsonData as Map<String, dynamic>;
+				return User.fromJson(item);
+			}
+			catch (e)
+			{
+				print('	 ⚠️ Ошибка парсинга элемента $e');
+			}
 
-		return null;
-		} catch (e) {
-		print('❌ Ошибка парсинга JSON: $e');
-		return null;
+			return null;
+		}
+		catch (e)
+		{
+			print('❌ Ошибка парсинга JSON: $e');
+			return null;
 		}
 	}
 
 	static Future<List<Workplace>> getUserWorkplaces(String userId) async 
 	{
-		try 
+		try
 		{
-		final response = await _callGAS('getUserWorkplaces', params: {'userId': userId});
+			final response = await _callGAS('getUserWorkplaces', params: {'userId': userId});
 
-		return _parseUserWorkplacesResponse(response.body);
-		/*final response = await http.get(
-			Uri.parse('$_baseUrl?action=getUserWorkplaces&userId=$userId'),
-		).timeout(_timeoutDuration);
-
-		if (response.statusCode == 200) {
 			return _parseUserWorkplacesResponse(response.body);
-		} else {
-			throw Exception('HTTP ${response.statusCode}');
-		}*/
-		} 
+			/*final response = await http.get(
+				Uri.parse('$_baseUrl?action=getUserWorkplaces&userId=$userId'),
+			).timeout(_timeoutDuration);
+
+			if (response.statusCode == 200) {
+				return _parseUserWorkplacesResponse(response.body);
+			} else {
+				throw Exception('HTTP ${response.statusCode}');
+			}*/
+		}
 		catch (e) 
 		{
-		print('❌ Ошибка в getUserWorkplaces: $e');
-		rethrow;
+			print('❌ Ошибка в getUserWorkplaces: $e');
+			rethrow;
 		}
 	}
 
@@ -367,7 +411,7 @@ class DataService
 			final workplace = Workplace.fromJson(item);
 			workplaces.add(workplace);
 			} catch (e) {
-			print('   ⚠️ Ошибка парсинга элемента $i: $e');
+			print('	 ⚠️ Ошибка парсинга элемента $i: $e');
 			}
 		}
 
@@ -385,66 +429,104 @@ class DataService
 		required String? userId,
 		required OrderStatus status,
 		String comment = '',
-	}) async {
-		try {
-		print('📤 Отправка обновления заказа:');
-		print('   ID: $orderId');
-		print('   Workplace: $workplaceId');
-		print('   Status: ${status.name}');
-
-		final client = http.Client();
-		//client.maxRedirects = 5; // Разрешаем редиректы
-
-		final action = status == OrderStatus.completed ? 'completeOrderWorkplace' : 'updateOrderWorkplace';
-
-		try 
+	}) async
+	{
+		try
 		{
-			final response = await client
-				.post(
-				Uri.parse(_baseUrl),
-				headers: {'Content-Type': 'text/plain;charset=utf-8'},
-				body: json.encode({
-					'action': action,
-					'payload': {
-					'orderInProductId': orderId,
-					'workplaceId': workplaceId,
-					'userId': userId,
-					'status': status.name,
-					'source': '${PlatformUtils.platform} API',  // источник
-					},
-				}),
-				)
-				.timeout(const Duration(seconds: 20));
+			bool _isGASServer = _currentBaseUrl.contains('script.google.com');
 
-			print('📥 Ответ сервера: ${response.statusCode}');
+			print('📤 Отправка обновления заказа:');
+			print('	 ID: $orderId');
+			print('	 Workplace: $workplaceId');
+			print('	 Status: ${status.name}');
 
-			// Если 302 или 200 - считаем успехом
-			if (response.statusCode == 200 || response.statusCode == 302) {
-			print('✅ Заказ обновлен на сервере');
-			return {'success': true, 'message': 'OK'};
+			final client = http.Client();
+			//client.maxRedirects = 5; // Разрешаем редиректы
+
+			final action = status == OrderStatus.completed ? 'completeOrderWorkplace' : 'updateOrderWorkplace';
+
+			try 
+			{
+				http.Response response;
+				
+				if (_isGASServer)
+				{
+					var headers = {'Content-Type': 'text/plain;charset=utf-8'};
+					final bodyContext = {
+						'action': action,
+						'payload': {
+						'orderInProductId': orderId,
+						'workplaceId': workplaceId,
+						'userId': userId,
+						'status': status.name,
+						'source': '${PlatformUtils.platform} API',	// источник
+						}
+					};
+
+					final uri = Uri.parse(_baseUrl);
+					print('URI: ${uri.toString()}');
+
+					final body = json.encode(bodyContext);
+					print('body: ${body.toString()}');
+
+					response = await client
+						.post(
+						uri,
+						headers: headers,
+						body: body,
+						)
+						.timeout(const Duration(seconds: 20));
+
+				}
+				else
+				{
+					final Map<String, dynamic> params = 
+					{
+						'productionOrderId': orderId,
+						'workplaceId': workplaceId,
+						'userId': userId,
+						'notes': '',
+						'status': status.name,
+						'source': '${PlatformUtils.platform} API',	// источник
+					};
+
+					response = await _postNodeServer(action, params: params);
+				}
+				
+				print('📥 Ответ сервера: ${response.statusCode}');
+
+				// Если 302 или 200 - считаем успехом
+				if (response.statusCode == 200 || response.statusCode == 302)
+				{
+					print('✅ Заказ обновлен на сервере');
+					return {'success': true, 'message': 'OK'};
+				}
+
+				return {'success': false, 'message': 'HTTP ${response.statusCode}'};
 			}
-
-			return {'success': false, 'message': 'HTTP ${response.statusCode}'};
-		} finally {
-			client.close();
+			finally
+			{
+				client.close();
+			}
 		}
-		} catch (e) {
-		print('⚠️ Ошибка сети, но продолжаем работу: $e');
-		// Для пилота - возвращаем успех даже при ошибке
-		return {'success': true, 'message': 'Обновлено локально'};
+		catch (e)
+		{
+			print('⚠️ Ошибка сети, но продолжаем работу: $e');
+			// Для пилота - возвращаем успех даже при ошибке
+			return {'success': false, 'message': '$e'};
 		}
 	}
 
 	// Универсальный метод для всех запросов
-	static Future<http.Response> _callGAS(String action, {Map<String, dynamic>? params}) async 
-	{
-		if(PlatformUtils.isWeb)
+	static Future<http.Response>_callGAS(String action, {Map<String, dynamic>? params}) async 
+	{		
+		if(PlatformUtils.isWeb && isGASServer)
 		{
 			return _postGAS(action, params: params);
 		}
 		else
 		{
-			return _getGAS(action, params: params);
+			return isGASServer ? _getGAS(action, params: params) : _getNodeServer(action, params: params);
 		}
 	}
 	
@@ -478,11 +560,11 @@ class DataService
 
 			if (response.statusCode == 200) 
 			{
-			return response;
+				return response;
 			} 
 			else 
 			{
-			throw Exception('HTTP ${response.statusCode}');
+				throw Exception('HTTP ${response.statusCode}');
 			}
 		}
 		finally
@@ -507,7 +589,7 @@ class DataService
 				queryString += '&$encodedKey=$encodedValue';
 			});
 			}
-			
+
 			// Формируем полный URL
 			final Uri uri = Uri.parse('$_baseUrl?$queryString');
 			
@@ -518,6 +600,8 @@ class DataService
 				.timeout(_timeoutDuration);
 			
 			print('📥 Ответ сервера: ${response.statusCode}');
+			print('📥 Ответ сервера: ${response.body}');
+
 			
 			if (response.statusCode == 200) 
 			{
@@ -531,6 +615,78 @@ class DataService
 		catch (e)
 		{
 			print('❌ Ошибка в _getGAS: $e');
+			rethrow;
+		}
+	}
+
+	static Future<http.Response> _getNodeServer(String action, {Map<String, dynamic>? params}) async 
+	{
+		try
+		{
+			// Строим URL по конфигурации
+			final urlPath = RouteConfig.buildUrl(action, params: params);
+			final uri = Uri.parse('$_baseUrl$urlPath');
+			
+			print('📤 GET запрос: $uri');
+			
+			final response = await http
+				.get(uri)
+				.timeout(_timeoutDuration);
+			
+			print('📥 Ответ сервера: ${response.statusCode}');
+			print('📥 Ответ сервера: ${response.body}');
+			
+			if (response.statusCode == 200) 
+			{
+				return response;
+			} 
+			else 
+			{
+				throw Exception('HTTP ${response.statusCode}');
+			}
+		}
+		catch (e)
+		{
+			print('❌ Ошибка в _getNodeServer: $e');
+			rethrow;
+		}
+	}
+
+	static Future<http.Response> _postNodeServer(String action, {Map<String, dynamic>? params}) async 
+	{
+		try
+		{
+			final urlPath = RouteConfig.buildUrl(action, params: params);
+			final uri = Uri.parse('$_baseUrl$urlPath');
+			
+			final body = json.encode(params);
+			
+			print('📤 POST запрос: $uri');
+			print('📤 Body: $body');
+			
+			final response = await http
+				.post(
+					uri,
+					headers: {'Content-Type': 'application/json'},
+					body: body,
+				)
+				.timeout(_timeoutDuration);
+			
+			print('📥 Ответ сервера: ${response.statusCode}');
+			print('📥 Ответ сервера: ${response.body}');
+			
+			if (response.statusCode == 200) 
+			{
+				return response;
+			} 
+			else 
+			{
+				throw Exception('HTTP ${response.statusCode}');
+			}
+		}
+		catch (e)
+		{
+			print('❌ Ошибка в _postNodeServer: $e');
 			rethrow;
 		}
 	}
