@@ -25,6 +25,13 @@ class AppConfig
 		isProduction: false,
 	);
 
+	// Продакшен конфигурация (C# API-server)
+	static const AppConfig productionAPI = AppConfig(
+		name: 'API-server',
+		apiUrl: 'http://192.168.0.254:3031/api',
+		isProduction: false,
+	);
+
 	// Список всех доступных конфигураций
-	static const List<AppConfig> all = [production, development];
+	static const List<AppConfig> all = [productionAPI];
 }
