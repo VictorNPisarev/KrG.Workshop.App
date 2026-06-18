@@ -5,8 +5,6 @@ import '../providers/auth_provider.dart';
 import '../services/device_auth_service.dart';
 import '../utils/platform_utils.dart';
 import '../services/config_service.dart';
-import '../services/data_service.dart';
-import '../config/app_config.dart';
 import 'settings_screen.dart';
 
 class LoginScreen extends StatefulWidget

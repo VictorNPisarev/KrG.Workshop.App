@@ -26,7 +26,7 @@ class DataService
 	static String get socketUrl
 	{
 		final uri = Uri.parse(_currentBaseUrl);
-		return '${uri.scheme}://${uri.host}:3000';
+		return '${uri.scheme}://${uri.host}:3031';
 	}
 	
 	// Инициализация (вызывать при запуске)
